@@ -1,0 +1,847 @@
+{
+	"info": {
+		"_postman_id": "bottleflow-test-scenarios",
+		"name": "BottleFlow Test Scenarios",
+		"description": "Pre-configured test scenarios for common workflows",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "🚀 Complete Setup Workflow",
+			"item": [
+				{
+					"name": "1. Login as Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Login successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('tokens');",
+									"    pm.environment.set('access_token', response.tokens.access);",
+									"    pm.environment.set('user_role', response.user.role);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "2. Create Sample Products",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Product created successfully', function () {",
+									"    pm.response.to.have.status(201);",
+									"    const response = pm.response.json();",
+									"    pm.environment.set('product_500ml_id', response.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"500ml Plastic Bottle\",\n    \"purchase_price\": \"5.00\",\n    \"wash_price\": \"2.00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/products/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "3. Create 1L Product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('1L Product created successfully', function () {",
+									"    pm.response.to.have.status(201);",
+									"    const response = pm.response.json();",
+									"    pm.environment.set('product_1l_id', response.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"1L Plastic Bottle\",\n    \"purchase_price\": \"8.00\",\n    \"wash_price\": \"3.00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/products/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "4. Create Sample Workers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Worker created successfully', function () {",
+									"    pm.response.to.have.status(201);",
+									"    const response = pm.response.json();",
+									"    pm.environment.set('washer_id', response.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"John Doe\",\n    \"phone_number\": \"+254700000001\",\n    \"id_number\": \"12345678\",\n    \"role\": \"Washer\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/workers/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"workers",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "5. Create Supervisor",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Supervisor created successfully', function () {",
+									"    pm.response.to.have.status(201);",
+									"    const response = pm.response.json();",
+									"    pm.environment.set('supervisor_id', response.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Jane Smith\",\n    \"phone_number\": \"+254700000002\",\n    \"id_number\": \"87654321\",\n    \"role\": \"Supervisor\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/workers/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"workers",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "6. Verify Setup Complete",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Setup verification passed', function () {",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.length).to.be.at.least(2);",
+									"    console.log('✅ Setup complete! Created ' + response.length + ' products');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/products/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products",
+								""
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📦 Purchase to Sale Workflow",
+			"item": [
+				{
+					"name": "1. Record Purchase",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Purchase recorded successfully', function () {",
+									"    pm.response.to.have.status(201);",
+									"    const response = pm.response.json();",
+									"    pm.environment.set('purchase_id', response.id);",
+									"    pm.expect(response.total_cost).to.equal('1300.00');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date\": \"2024-01-15\",\n    \"amount_paid\": \"1000.00\",\n    \"notes\": \"Monthly inventory purchase\",\n    \"items\": [\n        {\n            \"product\": \"{{product_500ml_id}}\",\n            \"quantity\": 100,\n            \"cost\": \"500.00\"\n        },\n        {\n            \"product\": \"{{product_1l_id}}\",\n            \"quantity\": 100,\n            \"cost\": \"800.00\"\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/purchases/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"purchases",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "2. Check Stock Levels",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Stock levels updated', function () {",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.length).to.be.at.least(2);",
+									"    ",
+									"    // Find 500ml product stock",
+									"    const product500ml = response.find(p => p.product_name.includes('500ml'));",
+									"    if (product500ml) {",
+									"        pm.expect(product500ml.raw_stock).to.be.at.least(100);",
+									"        console.log('✅ 500ml stock: ' + product500ml.raw_stock + ' raw, ' + product500ml.washed_stock + ' washed');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/stock/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"stock",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "3. Assign Washing Task",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Washing task assigned', function () {",
+									"    pm.response.to.have.status(201);",
+									"    const response = pm.response.json();",
+									"    pm.environment.set('washing_task_id', response.id);",
+									"    pm.expect(response.status).to.equal('Pending');",
+									"    pm.expect(response.assigned_quantity).to.equal(50);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"worker\": \"{{washer_id}}\",\n    \"product\": \"{{product_500ml_id}}\",\n    \"task_type\": \"washing\",\n    \"assigned_quantity\": 50,\n    \"salary\": \"100.00\",\n    \"deduction\": \"5.00\",\n    \"date\": \"2024-01-15\",\n    \"notes\": \"Wash 50 bottles for quality check\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/tasks/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"tasks",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "4. Update Task Progress",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Task progress updated', function () {",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.washed_quantity).to.equal(50);",
+									"    pm.expect(response.status).to.equal('Completed');",
+									"    pm.expect(response.completion_percentage).to.equal(100);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"washed_quantity\": 50,\n    \"notes\": \"Task completed successfully - all 50 bottles washed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/tasks/{{washing_task_id}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"tasks",
+								"{{washing_task_id}}",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "5. Record Stock Sale",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Stock sale recorded', function () {",
+									"    pm.response.to.have.status(201);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.sale_type).to.equal('washed');",
+									"    pm.expect(response.quantity).to.equal(30);",
+									"    pm.expect(response.total_amount).to.equal('90.00');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"product\": \"{{product_500ml_id}}\",\n    \"sale_type\": \"washed\",\n    \"quantity\": 30,\n    \"price_per_unit\": \"3.00\",\n    \"customer_name\": \"ABC Restaurant\",\n    \"date\": \"2024-01-15\",\n    \"notes\": \"Regular customer order - clean bottles\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/stock/sell/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"stock",
+								"sell",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "6. Verify Final Stock",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Final stock verification', function () {",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    ",
+									"    const product500ml = response.find(p => p.product_name.includes('500ml'));",
+									"    if (product500ml) {",
+									"        // Should have 50 raw (100 - 50 assigned), 20 washed (50 - 30 sold)",
+									"        pm.expect(product500ml.raw_stock).to.equal(50);",
+									"        pm.expect(product500ml.washed_stock).to.equal(20);",
+									"        console.log('✅ Final stock - Raw: ' + product500ml.raw_stock + ', Washed: ' + product500ml.washed_stock);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/stock/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"stock",
+								""
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "💰 Salary Management Workflow",
+			"item": [
+				{
+					"name": "1. Check Pending Salaries",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Pending salaries retrieved', function () {",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    ",
+									"    // Find John Doe's pending salary",
+									"    const johnDoe = response.find(w => w.worker_name === 'John Doe');",
+									"    if (johnDoe) {",
+									"        pm.expect(johnDoe.pending_salary).to.be.above(0);",
+									"        console.log('✅ John Doe pending salary: $' + johnDoe.pending_salary);",
+									"        pm.environment.set('pending_amount', johnDoe.pending_salary);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/salaries/pending/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"salaries",
+								"pending",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "2. Create Daily Salary Task",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Daily salary task created', function () {",
+									"    pm.response.to.have.status(201);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.worker_name).to.equal('Jane Smith');",
+									"    pm.expect(response.net_pay).to.equal('450.00');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"worker\": \"{{supervisor_id}}\",\n    \"salary\": \"500.00\",\n    \"deduction\": \"50.00\",\n    \"date\": \"2024-01-15\",\n    \"notes\": \"Daily salary for supervisor duties\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/tasks/daily-salary/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"tasks",
+								"daily-salary",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "3. Pay Worker Salary",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Salary payment recorded', function () {",
+									"    pm.response.to.have.status(201);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.worker_name).to.equal('John Doe');",
+									"    pm.expect(response.amount).to.equal('50.00');",
+									"    pm.expect(response.payment_method).to.equal('Cash');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"worker\": \"{{washer_id}}\",\n    \"amount\": \"50.00\",\n    \"date\": \"2024-01-15\",\n    \"payment_method\": \"Cash\",\n    \"notes\": \"Partial payment for washing work\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/salaries/payments/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"salaries",
+								"payments",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "4. Get Salary Summary",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Salary summary retrieved', function () {",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('total_pending');",
+									"    pm.expect(response).to.have.property('total_paid_this_month');",
+									"    pm.expect(response).to.have.property('workers_with_pending');",
+									"    console.log('✅ Salary Summary:');",
+									"    console.log('   Total Pending: $' + response.total_pending);",
+									"    console.log('   Paid This Month: $' + response.total_paid_this_month);",
+									"    console.log('   Workers with Pending: ' + response.workers_with_pending);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/salaries/summary/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"salaries",
+								"summary",
+								""
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📊 Analytics & Reporting",
+			"item": [
+				{
+					"name": "1. Task Statistics",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Task statistics retrieved', function () {",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('task_counts');",
+									"    pm.expect(response).to.have.property('salary_summary');",
+									"    console.log('✅ Task Statistics:');",
+									"    console.log('   Total Tasks: ' + response.task_counts.total);",
+									"    console.log('   Completed: ' + response.task_counts.completed);",
+									"    console.log('   Pending: ' + response.task_counts.pending);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/tasks/statistics/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"tasks",
+								"statistics",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "2. Stock Movement History",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Stock movements retrieved', function () {",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response.length).to.be.above(0);",
+									"    ",
+									"    // Count different movement types",
+									"    const purchases = response.filter(m => m.type === 'purchase').length;",
+									"    const assignments = response.filter(m => m.type === 'assign_wash').length;",
+									"    const completions = response.filter(m => m.type === 'complete_wash').length;",
+									"    const sales = response.filter(m => m.type === 'sell_washed').length;",
+									"    ",
+									"    console.log('✅ Stock Movements:');",
+									"    console.log('   Purchases: ' + purchases);",
+									"    console.log('   Wash Assignments: ' + assignments);",
+									"    console.log('   Wash Completions: ' + completions);",
+									"    console.log('   Sales: ' + sales);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/stock/movements/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"stock",
+								"movements",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "3. Audit Statistics (Admin)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Audit statistics retrieved', function () {",
+									"    if (pm.environment.get('user_role') !== 'admin') {",
+									"        pm.response.to.have.status(403);",
+									"        console.log('⚠️  Audit access restricted to admin users');",
+									"        return;",
+									"    }",
+									"    ",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('total_logs');",
+									"    pm.expect(response).to.have.property('action_breakdown');",
+									"    ",
+									"    console.log('✅ Audit Statistics:');",
+									"    console.log('   Total Logs: ' + response.total_logs);",
+									"    console.log('   Recent Activity (7 days): ' + response.recent_activity_7_days);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/audit/statistics/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"audit",
+								"statistics",
+								""
+							]
+						}
+					}
+				}
+			]
+		}
+	]
+}
