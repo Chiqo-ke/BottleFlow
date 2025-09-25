@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/auth-context";
 import { AppLogo } from "@/components/icons";
 import {
   SidebarProvider,
@@ -77,31 +78,22 @@ function getCurrentPage(pathname: string, role: Role) {
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [userRole, setUserRole] = useState<Role | null>(null);
-  const [isClient, setIsClient] = useState(false);
+  const { user, isLoading, logout } = useAuth();
 
-  useEffect(() => {
-    const role = localStorage.getItem("userRole") as Role | null;
-    if (!role) {
-      router.replace("/login");
-    } else {
-      setUserRole(role);
-    }
-    setIsClient(true);
-  }, [router]);
-
-  const handleLogout = () => {
-    localStorage.removeItem("userRole");
-    router.push("/login");
-  };
-
-  if (!isClient || !userRole) {
+  if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
   }
+
+  if (!user) {
+    router.replace("/login");
+    return null;
+  }
+
+  const userRole = user.role;
 
   const currentNavItems = navItems[userRole];
   const currentPage = getCurrentPage(pathname, userRole);
@@ -133,7 +125,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <SidebarFooter className="mt-auto border-t">
               <SidebarMenu>
                 <SidebarMenuItem>
-                    <SidebarMenuButton onClick={handleLogout} tooltip="Logout">
+                    <SidebarMenuButton onClick={logout} tooltip="Logout">
                         <LogOut />
                         <span>Logout</span>
                     </SidebarMenuButton>
@@ -164,7 +156,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout}>
+                <DropdownMenuItem onClick={logout}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Log out</span>
                 </DropdownMenuItem>

@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import type * as z from "zod";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,39 +15,30 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/auth-context";
 import { loginSchema } from "@/lib/schemas";
-import { User } from "lucide-react";
+import { User, Eye, EyeOff } from "lucide-react";
 
 export function LoginForm() {
   const router = useRouter();
-  const { toast } = useToast();
+  const { login, isLoading } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+    },
   });
 
-  function onSubmit(data: z.infer<typeof loginSchema>) {
-    // In a real app, you'd handle authentication here.
-    // For this demo, we'll store the role in localStorage.
-    if (typeof window !== 'undefined') {
-      localStorage.setItem("userRole", data.role);
+  async function onSubmit(data: z.infer<typeof loginSchema>) {
+    const success = await login(data);
+    if (success) {
+      router.push("/dashboard");
+      router.refresh(); // To ensure layout re-renders with new auth state
     }
-    
-    toast({
-      title: "Logged in successfully",
-      description: `Redirecting to dashboard as ${data.role}.`,
-    });
-
-    router.push("/dashboard");
-    router.refresh(); // To ensure layout re-renders with new auth state
   }
 
   return (
@@ -54,27 +46,68 @@ export function LoginForm() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
-          name="role"
+          name="username"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Role</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a role to sign in" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormLabel>Username</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Enter your username"
+                  {...field}
+                  disabled={isLoading}
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full">
-          <User className="mr-2 h-4 w-4" /> Sign In
+        
+        <FormField
+          control={form.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Password</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    {...field}
+                    disabled={isLoading}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
+                    disabled={isLoading}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? (
+            <>
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+              Signing In...
+            </>
+          ) : (
+            <>
+              <User className="mr-2 h-4 w-4" /> Sign In
+            </>
+          )}
         </Button>
       </form>
     </Form>
