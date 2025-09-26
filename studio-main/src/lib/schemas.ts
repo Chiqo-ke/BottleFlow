@@ -34,8 +34,24 @@ export const workerSchema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters long'),
   phoneNumber: z.string().min(10, 'Phone number must be at least 10 digits'),
   idNumber: z.string().min(5, 'ID number must be at least 5 characters'),
-  role: z.string().min(2, 'Role must be at least 2 characters'),
-});
+  role: z.string().min(2, 'Role must be at least 2 characters').refine(
+    (role) => role.trim().length >= 2,
+    { message: 'Role must be at least 2 characters' }
+  ),
+  email: z.string().email('Invalid email format').optional().or(z.literal('')),
+}).refine(
+  (data) => {
+    // If role is manager, email is required
+    if (data.role === 'manager' && (!data.email || data.email.trim() === '')) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: 'Email is required for manager role',
+    path: ['email'],
+  }
+);
 
 export const dailySalarySchema = z.object({
   amount: z.coerce.number().positive('Salary amount must be a positive number.'),

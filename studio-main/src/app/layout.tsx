@@ -3,9 +3,11 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/contexts/auth-context";
 
+const appName = process.env.NEXT_PUBLIC_APP_NAME || 'BottleFlow';
+
 export const metadata: Metadata = {
-  title: 'BottleFlow',
-  description: 'Manage your bottle refurbishment process with ease.',
+  title: appName,
+  description: `Manage your bottle refurbishment process with ease using ${appName}.`,
 };
 
 export default function RootLayout({

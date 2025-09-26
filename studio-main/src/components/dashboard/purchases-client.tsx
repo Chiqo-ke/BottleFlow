@@ -22,14 +22,15 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { mockProducts, mockPurchases, addAuditLog, updateStock } from '@/lib/data';
+import { apiClient, type Purchase as ApiPurchase, type CreatePurchaseData, type Product as ApiProduct } from '@/lib/api';
 import type { Purchase, PurchaseItem } from '@/lib/types';
 import { purchaseSchema } from '@/lib/schemas';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
 
 
-function PurchaseForm({ onSave, closeDialog }: { onSave: (data: Purchase) => void, closeDialog: () => void }) {
+function PurchaseForm({ onSave, closeDialog, products, isSubmitting }: { onSave: (data: Purchase) => Promise<void>, closeDialog: () => void, products: { id: string, name: string, purchasePrice: number }[], isSubmitting: boolean }) {
   const { toast } = useToast();
   const form = useForm<z.infer<typeof purchaseSchema>>({
     resolver: zodResolver(purchaseSchema),
@@ -55,7 +56,7 @@ function PurchaseForm({ onSave, closeDialog }: { onSave: (data: Purchase) => voi
   });
 
   const totalCost = watchedItems.reduce((acc, item) => {
-    const product = mockProducts.find(p => p.id === item.productId);
+    const product = products.find(p => p.id === item.productId);
     const quantity = Number(item.quantity) || 0;
     const price = product?.purchasePrice || 0;
     return acc + (quantity * price);
@@ -63,9 +64,9 @@ function PurchaseForm({ onSave, closeDialog }: { onSave: (data: Purchase) => voi
 
   const balance = totalCost - amountPaid;
 
-  const onSubmit = (data: z.infer<typeof purchaseSchema>) => {
+  const onSubmit = async (data: z.infer<typeof purchaseSchema>) => {
     const purchaseItems: PurchaseItem[] = data.items.map(item => {
-        const product = mockProducts.find(p => p.id === item.productId)!;
+        const product = products.find(p => p.id === item.productId)!;
         return {
             productId: product.id,
             productName: product.name,
@@ -83,9 +84,7 @@ function PurchaseForm({ onSave, closeDialog }: { onSave: (data: Purchase) => voi
       date: new Date().toISOString().split('T')[0],
     };
 
-    onSave(newPurchase);
-    toast({ title: "Purchase Recorded", description: `A new purchase of KES ${totalCost.toFixed(2)} was recorded.` });
-    closeDialog();
+    await onSave(newPurchase);
   };
 
   return (
@@ -105,7 +104,7 @@ function PurchaseForm({ onSave, closeDialog }: { onSave: (data: Purchase) => voi
                                 <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                                {mockProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                                {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                             </SelectContent>
                             </Select>
                             <FormMessage />
@@ -161,7 +160,10 @@ function PurchaseForm({ onSave, closeDialog }: { onSave: (data: Purchase) => voi
         </Card>
 
         <DialogFooter>
-          <Button type="submit">Record Purchase</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Record Purchase
+          </Button>
         </DialogFooter>
       </form>
     </Form>
@@ -169,30 +171,111 @@ function PurchaseForm({ onSave, closeDialog }: { onSave: (data: Purchase) => voi
 }
 
 export function PurchasesClient() {
-  const [_, setTick] = useState(0); // Used to force re-renders
+  const [isClient, setIsClient] = useState(false);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [products, setProducts] = useState<{ id: string, name: string, purchasePrice: number }[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
-    const interval = setInterval(() => setTick(t => t+1), 500); // Poll for data changes
-    return () => clearInterval(interval);
-  });
+    setIsClient(true);
+    loadData();
+  }, []);
 
-  const handleSavePurchase = (purchaseData: Purchase) => {
-    mockPurchases.unshift(purchaseData);
-    purchaseData.items.forEach(item => {
-        updateStock({
-            productId: item.productId,
-            type: 'purchase',
-            quantity: item.quantity
-        });
-    });
-    const itemsSummary = purchaseData.items.map(i => `${i.quantity} x ${i.productName}`).join(', ');
-    addAuditLog({
-        user: 'manager',
-        action: 'CREATE_PURCHASE',
-        details: `Recorded purchase: ${itemsSummary}`
-    });
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [purchasesResponse, productsResponse] = await Promise.all([
+        apiClient.getPurchases(),
+        apiClient.getProducts()
+      ]);
+
+      if (purchasesResponse.success && purchasesResponse.data) {
+        const convertedPurchases: Purchase[] = purchasesResponse.data.map((apiPurchase: ApiPurchase) => ({
+          id: apiPurchase.id,
+          items: apiPurchase.items.map(item => ({
+            productId: item.product,
+            productName: item.product_name || '',
+            quantity: item.quantity,
+            cost: parseFloat(item.cost),
+          })),
+          totalCost: parseFloat(apiPurchase.total_cost),
+          amountPaid: parseFloat(apiPurchase.amount_paid),
+          balance: parseFloat(apiPurchase.balance),
+          date: apiPurchase.date,
+        }));
+        setPurchases(convertedPurchases);
+      }
+
+      if (productsResponse.success && productsResponse.data) {
+        const convertedProducts = productsResponse.data.map((apiProduct: ApiProduct) => ({
+          id: apiProduct.id,
+          name: apiProduct.name,
+          purchasePrice: parseFloat(apiProduct.purchase_price),
+        }));
+        setProducts(convertedProducts);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load purchases and products',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleSavePurchase = async (purchaseData: Purchase) => {
+    setIsSubmitting(true);
+    
+    try {
+      const apiPurchaseData: CreatePurchaseData = {
+        date: purchaseData.date,
+        amount_paid: purchaseData.amountPaid.toString(),
+        notes: `Purchase of ${purchaseData.items.length} item(s)`,
+        items: purchaseData.items.map(item => ({
+          product: item.productId,
+          quantity: item.quantity,
+          cost: item.cost.toString(),
+        })),
+      };
+
+      const response = await apiClient.createPurchase(apiPurchaseData);
+
+      if (response.success && response.data) {
+        toast({ 
+          title: "Purchase Recorded", 
+          description: `A new purchase of KES ${purchaseData.totalCost.toFixed(2)} was recorded.`
+        });
+        
+        await loadData();
+        setIsDialogOpen(false);
+      } else {
+        toast({
+          title: 'Error',
+          description: response.error || 'Failed to record purchase',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Error saving purchase:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to record purchase',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isClient || loading) {
+    return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -220,21 +303,29 @@ export function PurchasesClient() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockPurchases.map((purchase) => (
-                <TableRow key={purchase.id}>
-                  <TableCell>{new Date(purchase.date).toLocaleDateString()}</TableCell>
-                  <TableCell className="font-medium">
-                    {purchase.items.map(item => (
-                        <div key={item.productId}>{item.quantity} x {item.productName}</div>
-                    ))}
-                  </TableCell>
-                  <TableCell className="text-right">KES {purchase.totalCost.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">KES {purchase.amountPaid.toFixed(2)}</TableCell>
-                  <TableCell className={cn("text-right font-semibold", purchase.balance > 0 && "text-destructive")}>
-                    KES {purchase.balance.toFixed(2)}
+              {purchases.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    No purchases recorded yet. Record your first purchase to get started.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                purchases.map((purchase) => (
+                  <TableRow key={purchase.id}>
+                    <TableCell>{new Date(purchase.date).toLocaleDateString()}</TableCell>
+                    <TableCell className="font-medium">
+                      {purchase.items.map(item => (
+                          <div key={item.productId}>{item.quantity} x {item.productName}</div>
+                      ))}
+                    </TableCell>
+                    <TableCell className="text-right">KES {purchase.totalCost.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">KES {purchase.amountPaid.toFixed(2)}</TableCell>
+                    <TableCell className={cn("text-right font-semibold", purchase.balance > 0 && "text-destructive")}>
+                      KES {purchase.balance.toFixed(2)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -244,7 +335,7 @@ export function PurchasesClient() {
           <DialogTitle className="font-headline">Record New Purchase</DialogTitle>
           <DialogDescription>Add items, quantities, and payment details for this transaction.</DialogDescription>
         </DialogHeader>
-        <PurchaseForm onSave={handleSavePurchase} closeDialog={() => setIsDialogOpen(false)} />
+        <PurchaseForm onSave={handleSavePurchase} closeDialog={() => setIsDialogOpen(false)} products={products} isSubmitting={isSubmitting} />
       </DialogContent>
     </Dialog>
   );

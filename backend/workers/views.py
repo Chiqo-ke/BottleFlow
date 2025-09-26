@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .models import Worker
 from .serializers import WorkerSerializer, WorkerCreateUpdateSerializer
+from .email_service import create_manager_account, send_manager_credentials_email
 from audit.utils import log_audit
 
 @api_view(['GET', 'POST'])
@@ -26,14 +27,59 @@ def worker_list_create(request):
         if serializer.is_valid():
             worker = serializer.save()
             
-            # Log audit trail
-            log_audit(
-                user=request.user,
-                action='CREATE_WORKER',
-                details=f'Created worker: {worker.name} ({worker.id_number})'
-            )
-            
-            return Response(WorkerSerializer(worker).data, status=status.HTTP_201_CREATED)
+            # If worker is a manager, create user account and send credentials
+            if worker.role.lower() == 'manager' and worker.email:
+                account_result = create_manager_account(worker.name, worker.email)
+                
+                if account_result['success']:
+                    # Link the user account to the worker
+                    worker.user_account = account_result['user']
+                    worker.save()
+                    
+                    # Send credentials email
+                    email_sent = send_manager_credentials_email(
+                        worker.name,
+                        worker.email,
+                        account_result['username'],
+                        account_result['password'],
+                        admin_user=request.user
+                    )
+                    
+                    # Log audit trail
+                    log_audit(
+                        user=request.user,
+                        action='CREATE_MANAGER_WORKER',
+                        details=f'Created manager worker: {worker.name} with account {account_result["username"]}'
+                    )
+                    
+                    response_data = WorkerSerializer(worker).data
+                    response_data['account_created'] = True
+                    response_data['email_sent'] = email_sent
+                    response_data['username'] = account_result['username']
+                    
+                    return Response(response_data, status=status.HTTP_201_CREATED)
+                else:
+                    # Account creation failed, but worker was created
+                    log_audit(
+                        user=request.user,
+                        action='CREATE_WORKER_ACCOUNT_FAILED',
+                        details=f'Created worker: {worker.name} but failed to create account: {account_result["error"]}'
+                    )
+                    
+                    response_data = WorkerSerializer(worker).data
+                    response_data['account_created'] = False
+                    response_data['account_error'] = account_result['error']
+                    
+                    return Response(response_data, status=status.HTTP_201_CREATED)
+            else:
+                # Regular worker (non-manager)
+                log_audit(
+                    user=request.user,
+                    action='CREATE_WORKER',
+                    details=f'Created worker: {worker.name} ({worker.id_number})'
+                )
+                
+                return Response(WorkerSerializer(worker).data, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

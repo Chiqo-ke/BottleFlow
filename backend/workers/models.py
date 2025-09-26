@@ -9,6 +9,8 @@ class Worker(models.Model):
     phone_number = models.CharField(max_length=15)
     id_number = models.CharField(max_length=20, unique=True)
     role = models.CharField(max_length=50, default='Washer')
+    email = models.EmailField(blank=True, null=True, help_text='Required for manager role')
+    user_account = models.OneToOneField('authentication.User', on_delete=models.SET_NULL, null=True, blank=True, help_text='Associated user account for managers')
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

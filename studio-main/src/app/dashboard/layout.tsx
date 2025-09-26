@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { AppLogo } from "@/components/icons";
@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from 'next/navigation';
+import { APP_CONFIG } from '@/lib/api';
 
 type Role = "admin" | "manager";
 
@@ -80,6 +81,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { user, isLoading, logout } = useAuth();
 
+  // Handle authentication redirect in useEffect to avoid render-time navigation
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace("/login");
+    }
+  }, [user, isLoading, router]);
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -89,8 +97,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   if (!user) {
-    router.replace("/login");
-    return null;
+    // Show loading state while redirect is happening
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
   const userRole = user.role;
@@ -105,7 +117,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <SidebarHeader className="border-b">
             <div className="flex items-center gap-2 p-2">
               <AppLogo />
-              <h1 className="font-headline text-xl font-semibold text-primary">BottleFlow</h1>
+              <h1 className="font-headline text-xl font-semibold text-primary">{APP_CONFIG.appName}</h1>
             </div>
           </SidebarHeader>
           <SidebarContent>
@@ -143,7 +155,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar className="h-10 w-10 border-2 border-primary/50">
-                    <AvatarImage src="https://picsum.photos/seed/user-avatar/100/100" data-ai-hint="person portrait" alt="User avatar" />
+                    <AvatarImage src={APP_CONFIG.defaultAvatarUrl.replace('{name}', userRole)} data-ai-hint="person portrait" alt="User avatar" />
                     <AvatarFallback>{userRole.charAt(0).toUpperCase()}</AvatarFallback>
                   </Avatar>
                 </Button>
@@ -152,7 +164,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none capitalize">{userRole}</p>
-                    <p className="text-xs leading-none text-muted-foreground">{userRole}@bottleflow.com</p>
+                    <p className="text-xs leading-none text-muted-foreground">{userRole}@{APP_CONFIG.companyDomain}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />

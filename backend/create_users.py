@@ -15,33 +15,23 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
-def create_user_with_role():
-    """Interactive user creation with role selection"""
-    print("🚀 BottleFlow User Creation")
-    print("=" * 30)
+def create_admin_user():
+    """Interactive admin user creation (superuser only)"""
+    print("🚀 BottleFlow Admin User Creation")
+    print("=" * 35)
+    print("ℹ️  This script creates admin superusers only.")
+    print("ℹ️  Manager accounts are created automatically when adding manager workers.")
+    print()
     
     # Get user details
-    username = input("Username: ").strip()
+    username = input("Admin Username: ").strip()
     
     # Check if user exists
     if User.objects.filter(username=username).exists():
         print(f"❌ User '{username}' already exists!")
         return False
     
-    email = input("Email: ").strip()
-    
-    # Role selection
-    print("\nAvailable roles:")
-    print("  1. admin   - Full system access (can create users, access all endpoints)")
-    print("  2. manager - Limited access (can manage operations but not create users)")
-    
-    while True:
-        role_choice = input("\nSelect role (admin/manager): ").strip().lower()
-        if role_choice in ['admin', 'manager']:
-            role = role_choice
-            break
-        else:
-            print("Please enter 'admin' or 'manager'")
+    email = input("Admin Email: ").strip()
     
     # Password
     password = getpass.getpass("Password: ")
@@ -51,39 +41,40 @@ def create_user_with_role():
         print("❌ Passwords do not match!")
         return False
     
-    # Create user
+    # Create admin user
     try:
         user = User.objects.create_user(
             username=username,
             email=email,
             password=password,
-            role=role
+            role='admin'
         )
         
-        # Set permissions based on role
-        if role == 'admin':
-            user.is_staff = True
-            user.is_superuser = True
-            user.save()
-            print(f"✅ Admin user '{username}' created successfully!")
-            print("   - Can access Django admin panel")
-            print("   - Can create other users")
-            print("   - Has full API access")
-        else:
-            print(f"✅ Manager user '{username}' created successfully!")
-            print("   - Can manage daily operations")
-            print("   - Cannot create users")
-            print("   - Has limited API access")
+        # Set superuser permissions
+        user.is_staff = True
+        user.is_superuser = True
+        user.save()
+        
+        print(f"✅ Admin user '{username}' created successfully!")
+        print("   - Can access Django admin panel")
+        print("   - Can create workers and manager accounts")
+        print("   - Has full API access")
+        print()
+        print("💡 To create manager accounts:")
+        print("   1. Login to the frontend as admin")
+        print("   2. Go to Workers section")
+        print("   3. Add worker with 'manager' role and email")
+        print("   4. Manager account will be created automatically")
         
         return True
         
     except Exception as e:
-        print(f"❌ Error creating user: {e}")
+        print(f"❌ Error creating admin user: {e}")
         return False
 
-def create_sample_users():
-    """Create sample admin and manager users"""
-    print("🎯 Creating sample users...")
+def create_sample_admin():
+    """Create sample admin user only"""
+    print("🎯 Creating sample admin user...")
     
     # Sample admin
     if not User.objects.filter(username='admin').exists():
@@ -97,34 +88,31 @@ def create_sample_users():
         admin_user.is_superuser = True
         admin_user.save()
         print("✅ Sample admin created: admin/admin123")
-    
-    # Sample manager
-    if not User.objects.filter(username='manager').exists():
-        User.objects.create_user(
-            username='manager',
-            email='manager@bottleflow.com',
-            password='manager123',
-            role='manager'
-        )
-        print("✅ Sample manager created: manager/manager123")
+        print()
+        print("💡 Manager accounts are created automatically when:")
+        print("   - Admin adds a worker with 'manager' role and email")
+        print("   - Credentials are sent via email to the manager")
+    else:
+        print("ℹ️  Sample admin already exists")
 
 def main():
     """Main function"""
     print("Choose an option:")
-    print("1. Create user interactively")
-    print("2. Create sample users (admin/admin123, manager/manager123)")
+    print("1. Create admin user interactively")
+    print("2. Create sample admin user (admin/admin123)")
     print("3. List existing users")
     
     choice = input("\nEnter choice (1-3): ").strip()
     
     if choice == '1':
-        create_user_with_role()
+        create_admin_user()
     elif choice == '2':
-        create_sample_users()
+        create_sample_admin()
     elif choice == '3':
         print("\n📋 Existing users:")
         for user in User.objects.all():
-            print(f"   {user.username} ({user.role}) - {user.email}")
+            role_display = f"{user.role} {'(superuser)' if user.is_superuser else ''}"
+            print(f"   {user.username} ({role_display}) - {user.email}")
     else:
         print("Invalid choice!")
 

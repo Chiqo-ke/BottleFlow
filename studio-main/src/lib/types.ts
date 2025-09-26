@@ -11,6 +11,7 @@ export type Worker = {
   phoneNumber: string;
   idNumber: string;
   role: string;
+  email?: string;
 };
 
 export type PurchaseItem = {

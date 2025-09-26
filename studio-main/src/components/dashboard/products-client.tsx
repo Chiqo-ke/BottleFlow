@@ -19,20 +19,19 @@ import {
 } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { mockProducts, addAuditLog } from '@/lib/data';
+import { apiClient, type Product as ApiProduct, type CreateProductData } from '@/lib/api';
 import type { Product } from '@/lib/types';
 import { productSchema } from '@/lib/schemas';
 import { useToast } from '@/hooks/use-toast';
 
-function ProductForm({ product, onSave, closeDialog }: { product?: Product, onSave: (data: Product) => void, closeDialog: () => void }) {
+function ProductForm({ product, onSave, closeDialog, isSubmitting }: { product?: Product, onSave: (data: Product) => Promise<void>, closeDialog: () => void, isSubmitting: boolean }) {
   const form = useForm<z.infer<typeof productSchema>>({
     resolver: zodResolver(productSchema),
     defaultValues: product || { name: '', purchasePrice: 0, washPrice: 0 },
   });
 
-  const onSubmit = (data: z.infer<typeof productSchema>) => {
-    onSave({ ...product, ...data, id: product?.id || `prod-${Date.now()}` });
-    closeDialog();
+  const onSubmit = async (data: z.infer<typeof productSchema>) => {
+    await onSave({ ...product, ...data, id: product?.id || `prod-${Date.now()}` });
   };
 
   return (
@@ -40,29 +39,32 @@ function ProductForm({ product, onSave, closeDialog }: { product?: Product, onSa
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField control={form.control} name="name" render={({ field }) => (
           <FormItem>
-            <FormLabel>Product Name</FormLabel>
-            <FormControl><Input {...field} /></FormControl>
+            <FormLabel htmlFor="product-name">Product Name</FormLabel>
+            <FormControl><Input {...field} id="product-name" placeholder="e.g., 500ml Plastic Bottle" /></FormControl>
             <FormMessage />
           </FormItem>
         )} />
         <div className="grid grid-cols-2 gap-4">
           <FormField control={form.control} name="purchasePrice" render={({ field }) => (
             <FormItem>
-              <FormLabel>Purchase Price</FormLabel>
-              <FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl>
+              <FormLabel htmlFor="purchase-price">Purchase Price (KES)</FormLabel>
+              <FormControl><Input type="number" step="0.01" {...field} id="purchase-price" placeholder="0.00" onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl>
               <FormMessage />
             </FormItem>
           )} />
           <FormField control={form.control} name="washPrice" render={({ field }) => (
             <FormItem>
-              <FormLabel>Wash Price</FormLabel>
-              <FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl>
+              <FormLabel htmlFor="wash-price">Wash Price (KES)</FormLabel>
+              <FormControl><Input type="number" step="0.01" {...field} id="wash-price" placeholder="0.00" onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl>
               <FormMessage />
             </FormItem>
           )} />
         </div>
         <DialogFooter>
-          <Button type="submit">Save Product</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {product ? 'Update Product' : 'Add Product'}
+          </Button>
         </DialogFooter>
       </form>
     </Form>
@@ -72,51 +74,131 @@ function ProductForm({ product, onSave, closeDialog }: { product?: Product, onSa
 export function ProductsClient() {
   const [isClient, setIsClient] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [_, setTick] = useState(0); // Used to force re-renders
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
   const { toast } = useToast();
 
   useEffect(() => {
     setIsClient(true);
     setUserRole(localStorage.getItem('userRole'));
-    const interval = setInterval(() => setTick(t => t+1), 500); // Poll for data changes
-    return () => clearInterval(interval);
+    loadProducts();
   }, []);
 
-  const handleSaveProduct = (productData: Product) => {
-    const isEditing = !!editingProduct;
-    if (isEditing) {
-        const index = mockProducts.findIndex(p => p.id === productData.id);
-        if (index !== -1) mockProducts[index] = productData;
-    } else {
-        mockProducts.push(productData);
+  const loadProducts = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.getProducts();
+      if (response.success && response.data) {
+        // Convert API product format to frontend format
+        const convertedProducts: Product[] = response.data.map((apiProduct: ApiProduct) => ({
+          id: apiProduct.id,
+          name: apiProduct.name,
+          purchasePrice: parseFloat(apiProduct.purchase_price),
+          washPrice: parseFloat(apiProduct.wash_price),
+        }));
+        setProducts(convertedProducts);
+      } else {
+        toast({
+          title: 'Error',
+          description: response.error || 'Failed to load products',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Error loading products:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load products',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
     }
-
-    addAuditLog({
-        user: userRole || 'admin',
-        action: isEditing ? 'UPDATE_PRODUCT' : 'CREATE_PRODUCT',
-        details: `${isEditing ? 'Updated' : 'Added'} product: ${productData.name}`
-    });
-    toast({ title: `Product ${isEditing ? 'Updated' : 'Added'}`, description: `Product ${productData.name} has been successfully ${isEditing ? 'updated' : 'added'}.`});
   };
 
-  const handleDeleteProduct = (productId: string) => {
-    const product = mockProducts.find(p => p.id === productId);
-    const index = mockProducts.findIndex(p => p.id === productId);
-    if (index !== -1) mockProducts.splice(index, 1);
+  const handleSaveProduct = async (productData: Product) => {
+    const isEditing = !!editingProduct;
+    setIsSubmitting(true);
     
-    if (product) {
-      addAuditLog({
-        user: userRole || 'admin',
-        action: 'DELETE_PRODUCT',
-        details: `Deleted product: ${product.name}`
+    try {
+      // Convert frontend format to API format
+      const apiProductData: CreateProductData = {
+        name: productData.name,
+        purchase_price: productData.purchasePrice.toString(),
+        wash_price: productData.washPrice.toString(),
+      };
+
+      let response;
+      if (isEditing && editingProduct) {
+        response = await apiClient.updateProduct(editingProduct.id, apiProductData);
+      } else {
+        response = await apiClient.createProduct(apiProductData);
+      }
+
+      if (response.success && response.data) {
+        toast({ 
+          title: `Product ${isEditing ? 'Updated' : 'Added'}`, 
+          description: `Product ${productData.name} has been successfully ${isEditing ? 'updated' : 'added'}.`
+        });
+        
+        // Reload products list
+        await loadProducts();
+        
+        setIsDialogOpen(false);
+        setEditingProduct(undefined);
+      } else {
+        toast({
+          title: 'Error',
+          description: response.error || `Failed to ${isEditing ? 'update' : 'create'} product`,
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Error saving product:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to ${isEditing ? 'update' : 'create'} product`,
+        variant: 'destructive'
       });
-      toast({ title: 'Product Deleted', description: `Product ${product.name} has been deleted.`});
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteProduct = async (productId: string) => {
+    try {
+      const product = products.find(p => p.id === productId);
+      const response = await apiClient.deleteProduct(productId);
+      
+      if (response.success) {
+        toast({ 
+          title: 'Product Deleted', 
+          description: `Product ${product?.name || ''} has been deleted.`
+        });
+        
+        // Reload products list
+        await loadProducts();
+      } else {
+        toast({
+          title: 'Error',
+          description: response.error || 'Failed to delete product',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete product',
+        variant: 'destructive'
+      });
     }
   };
   
-  if (!isClient) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  if (!isClient || loading) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   
   if (userRole !== 'admin') {
     return (
@@ -154,23 +236,31 @@ export function ProductsClient() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockProducts.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="font-medium">{product.name}</TableCell>
-                  <TableCell className="text-right">KES {product.purchasePrice.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">KES {product.washPrice.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => { setEditingProduct(product); setIsDialogOpen(true); }}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteProduct(product.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+              {products.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    No products found. Add your first product to get started.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                products.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell className="font-medium">{product.name}</TableCell>
+                    <TableCell className="text-right">KES {product.purchasePrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">KES {product.washPrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => { setEditingProduct(product); setIsDialogOpen(true); }}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteProduct(product.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -182,7 +272,7 @@ export function ProductsClient() {
             {editingProduct ? 'Update the details for this product.' : 'Fill in the details for the new product.'}
           </DialogDescription>
         </DialogHeader>
-        <ProductForm product={editingProduct} onSave={handleSaveProduct} closeDialog={() => setIsDialogOpen(false)} />
+        <ProductForm product={editingProduct} onSave={handleSaveProduct} closeDialog={() => setIsDialogOpen(false)} isSubmitting={isSubmitting} />
       </DialogContent>
     </Dialog>
   );

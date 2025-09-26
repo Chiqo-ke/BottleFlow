@@ -1,6 +1,15 @@
 // API Configuration and Base Service
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// App Configuration
+export const APP_CONFIG = {
+  apiUrl: API_BASE_URL,
+  appName: process.env.NEXT_PUBLIC_APP_NAME || 'BottleFlow',
+  companyDomain: process.env.NEXT_PUBLIC_COMPANY_DOMAIN || 'bottleflow.com',
+  adminEmail: process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@bottleflow.com',
+  defaultAvatarUrl: process.env.NEXT_PUBLIC_DEFAULT_AVATAR_URL || 'https://ui-avatars.com/api/?name={name}&background=random',
+};
+
 // API Response Types
 export interface ApiResponse<T = any> {
   data?: T;
@@ -71,6 +80,7 @@ export interface CreateWorkerData {
   phone_number: string;
   id_number: string;
   role: string;
+  email?: string;
   is_active?: boolean;
 }
 
