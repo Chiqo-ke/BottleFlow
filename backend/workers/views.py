@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404, redirect
+from django.contrib.auth import get_user_model
 from .models import Worker, WorkerHistory
 from .serializers import WorkerSerializer, WorkerCreateUpdateSerializer
 from .email_service import create_manager_account, send_manager_credentials_email
@@ -22,6 +23,26 @@ def worker_list_create(request):
         # Only admin can create workers
         if request.user.role != 'admin':
             return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # --- Start of new validation logic ---
+        email = request.data.get('email')
+        id_number = request.data.get('id_number')
+        role = request.data.get('role')
+
+        # Check if a worker with this email already exists (and email is not empty)
+        if email and Worker.objects.filter(email=email).exists():
+            return Response({'error': f'A worker with the email {email} already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if a worker with this ID number already exists
+        if id_number and Worker.objects.filter(id_number=id_number).exists():
+            return Response({'error': f'A worker with the ID number {id_number} already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # If creating a manager, check if the email is already taken by a User
+        if role and role.lower() == 'manager' and email:
+            User = get_user_model()
+            if User.objects.filter(email=email).exists():
+                return Response({'error': f'A user account with the email {email} already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+        # --- End of new validation logic ---
         
         serializer = WorkerCreateUpdateSerializer(data=request.data)
         if serializer.is_valid():
