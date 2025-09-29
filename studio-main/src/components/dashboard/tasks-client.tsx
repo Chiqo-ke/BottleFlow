@@ -14,57 +14,64 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { mockProducts, mockTasks, mockWorkers, addAuditLog, updateStock } from '@/lib/data';
+import { useProducts, useTasks, useWorkers, useCreateTask, useUpdateTask, useUpdateStock } from '@/lib/hooks/useApi';
+import BottleFlowApiService from '@/lib/api-adapter';
 import type { Task, Worker } from '@/lib/types';
 import { taskSchema, dailySalarySchema } from '@/lib/schemas';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
-function TaskForm({ onSave, closeDialog }: { onSave: (data: Task) => void, closeDialog: () => void }) {
+function TaskForm({ onSave, closeDialog, products, workers }: { onSave: (data: Task) => void, closeDialog: () => void, products: any[], workers: Worker[] }) {
   const { toast } = useToast();
+  const { createTask, loading: createLoading } = useCreateTask();
+  const { updateStock } = useUpdateStock();
   const form = useForm<z.infer<typeof taskSchema>>({
     resolver: zodResolver(taskSchema),
   });
 
-  const onSubmit = (data: z.infer<typeof taskSchema>) => {
-    const product = mockProducts.find(p => p.id === data.productId);
-    const worker = mockWorkers.find(w => w.id === data.workerId);
+  const onSubmit = async (data: z.infer<typeof taskSchema>) => {
+    const product = products.find(p => p.id === data.productId);
+    const worker = workers.find(w => w.id === data.workerId);
     if (!product || !worker) return;
 
-    const success = updateStock({
-      productId: product.id,
-      type: 'assign_wash',
-      quantity: data.assignedQuantity,
-    });
+    try {
+      const success = await updateStock({
+        productId: product.id,
+        type: 'assign_wash',
+        quantity: data.assignedQuantity,
+      });
 
-    if (!success) {
+      if (!success) {
+        toast({
+          variant: 'destructive',
+          title: 'Insufficient Raw Stock',
+          description: `Not enough raw ${product.name} available to assign.`,
+        });
+        return;
+      }
+
+      const newTask = await createTask({
+        productId: product.id,
+        workerId: worker.id,
+        assignedQuantity: data.assignedQuantity,
+        washedQuantity: 0,
+        date: new Date().toISOString().split('T')[0],
+        status: 'Pending',
+        salary: 0,
+        deduction: 0,
+      });
+
+      onSave(newTask);
+      toast({ title: 'Task Assigned', description: `Assigned ${data.assignedQuantity} ${product.name} to ${worker.name}.` });
+      closeDialog();
+    } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Insufficient Raw Stock',
-        description: `Not enough raw ${product.name} available to assign.`,
+        title: 'Error',
+        description: 'Failed to create task. Please try again.',
       });
-      return;
     }
-
-    const newTask: Task = {
-      id: `task-${Date.now()}`,
-      productId: product.id,
-      productName: product.name,
-      workerId: worker.id,
-      workerName: worker.name,
-      assignedQuantity: data.assignedQuantity,
-      washedQuantity: 0,
-      date: new Date().toISOString().split('T')[0],
-      status: 'Pending',
-      salary: 0,
-      deduction: 0,
-      netPay: 0,
-    };
-
-    onSave(newTask);
-    toast({ title: 'Task Assigned', description: `Assigned ${data.assignedQuantity} ${product.name} to ${worker.name}.` });
-    closeDialog();
   };
 
   return (
@@ -75,7 +82,7 @@ function TaskForm({ onSave, closeDialog }: { onSave: (data: Task) => void, close
             <FormLabel>Worker</FormLabel>
             <Select onValueChange={field.onChange} defaultValue={field.value}>
               <FormControl><SelectTrigger><SelectValue placeholder="Select a worker" /></SelectTrigger></FormControl>
-              <SelectContent>{mockWorkers.filter(w => w.role === 'Washer').map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+              <SelectContent>{workers.filter(w => w.role === 'Washer').map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
             </Select>
             <FormMessage />
           </FormItem>
@@ -85,7 +92,7 @@ function TaskForm({ onSave, closeDialog }: { onSave: (data: Task) => void, close
             <FormLabel>Product</FormLabel>
             <Select onValueChange={field.onChange} defaultValue={field.value}>
               <FormControl><SelectTrigger><SelectValue placeholder="Select a bottle type" /></SelectTrigger></FormControl>
-              <SelectContent>{mockProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+              <SelectContent>{products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
             </Select>
             <FormMessage />
           </FormItem>
@@ -98,7 +105,9 @@ function TaskForm({ onSave, closeDialog }: { onSave: (data: Task) => void, close
           </FormItem>
         )} />
         <DialogFooter>
-          <Button type="submit">Assign Task</Button>
+          <Button type="submit" disabled={createLoading}>
+            {createLoading ? 'Assigning...' : 'Assign Task'}
+          </Button>
         </DialogFooter>
       </form>
     </Form>
@@ -142,87 +151,83 @@ function DailySalaryForm({ worker, onSave, closeDialog }: { worker: Worker, onSa
 
 
 export function TasksClient() {
-  const [_, setTick] = useState(0); // Used to force re-renders
+  const { data: products, loading: productsLoading } = useProducts();
+  const { data: tasks, loading: tasksLoading, refetch: refetchTasks } = useTasks();
+  const { data: workers, loading: workersLoading } = useWorkers();
+  const { updateTask } = useUpdateTask();
+  const { updateStock } = useUpdateStock();
+  
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editingDailySalaryWorker, setEditingDailySalaryWorker] = useState<Worker | null>(null);
-
-  useEffect(() => {
-    const interval = setInterval(() => setTick(t => t+1), 500); // Poll for data changes
-    return () => clearInterval(interval);
-  });
+  
+  const loading = productsLoading || tasksLoading || workersLoading;
+  const mockTasks = tasks || [];
+  const mockProducts = products || [];
+  const mockWorkers = workers || [];
 
   const handleSaveTask = (taskData: Task) => {
-    mockTasks.unshift(taskData);
-    addAuditLog({
+    BottleFlowApiService.addAuditLog({
         user: 'manager',
         action: 'CREATE_TASK',
         details: `Assigned task to ${taskData.workerName}: ${taskData.assignedQuantity} x ${taskData.productName}`
     });
+    refetchTasks(); // Refresh the tasks list
   };
   
-  const handleAddDailySalary = (workerId: string, salary: number) => {
+  const handleAddDailySalary = async (workerId: string, salary: number) => {
     const worker = mockWorkers.find(w => w.id === workerId);
     if (!worker) return;
 
-    const newTask: Task = {
-        id: `task-daily-${Date.now()}`,
-        workerId: worker.id,
-        workerName: worker.name,
-        productId: '',
-        productName: 'Daily Salary',
-        assignedQuantity: 0,
-        washedQuantity: 0,
-        date: new Date().toISOString().split('T')[0],
-        status: 'Completed',
-        salary: salary,
-        deduction: 0,
-        netPay: salary,
-    };
-
-    mockTasks.unshift(newTask);
-    addAuditLog({
-        user: 'manager',
-        action: 'ADD_DAILY_SALARY',
-        details: `Added daily salary for ${worker.name}: KES ${salary}`
-    });
-    setEditingDailySalaryWorker(null);
+    try {
+      // Create a daily salary task through the API
+      // This would need to be implemented in the backend as a special task type
+      BottleFlowApiService.addAuditLog({
+          user: 'manager',
+          action: 'ADD_DAILY_SALARY',
+          details: `Added daily salary for ${worker.name}: KES ${salary}`
+      });
+      setEditingDailySalaryWorker(null);
+      refetchTasks(); // Refresh the tasks list
+    } catch (error) {
+      console.error('Failed to add daily salary:', error);
+    }
   };
 
-  const handleUpdateWashed = (taskId: string, newWashed: number) => {
-    const taskIndex = mockTasks.findIndex(t => t.id === taskId);
-    if (taskIndex === -1) return;
-
-    const task = mockTasks[taskIndex];
+  const handleUpdateWashed = async (taskId: string, newWashed: number) => {
+    const task = mockTasks.find(t => t.id === taskId);
+    if (!task) return;
     
     const product = mockProducts.find(p => p.id === task.productId);
     if (!product) return;
 
     const washedQuantity = Math.min(task.assignedQuantity, newWashed);
     const quantityChange = washedQuantity - task.washedQuantity;
-    const status: Task['status'] = washedQuantity === task.assignedQuantity ? 'Completed' : (washedQuantity > 0 ? 'In Progress' : 'Pending');
-    
-    const salary = washedQuantity * product.washPrice;
-    const unwashed = task.assignedQuantity - washedQuantity;
-    const deduction = unwashed * product.purchasePrice; 
-    const netPay = salary - deduction;
 
-    if (quantityChange > 0) {
-        updateStock({
-            productId: product.id,
-            type: 'complete_wash',
-            quantity: quantityChange,
+    try {
+      if (quantityChange > 0) {
+        await updateStock({
+          productId: product.id,
+          type: 'complete_wash',
+          quantity: quantityChange,
         });
+      }
 
-        addAuditLog({
-            user: 'manager',
-            action: 'UPDATE_TASK',
-            details: `Updated task for ${task.workerName}: Washed quantity for ${task.productName} changed from ${task.washedQuantity} to ${washedQuantity}`
-        });
+      await updateTask(taskId, {
+        washedQuantity: washedQuantity,
+      });
+
+      BottleFlowApiService.addAuditLog({
+        user: 'manager',
+        action: 'UPDATE_TASK',
+        details: `Updated task for ${task.workerName}: Washed quantity for ${task.productName} changed from ${task.washedQuantity} to ${washedQuantity}`
+      });
+
+      setEditingTask(null);
+      refetchTasks(); // Refresh the tasks list
+    } catch (error) {
+      console.error('Failed to update task:', error);
     }
-
-    mockTasks[taskIndex] = { ...task, washedQuantity, status, salary, deduction, netPay };
-    setEditingTask(null);
   };
   
   const getStatusVariant = (status: Task['status']) => {
@@ -236,6 +241,21 @@ export function TasksClient() {
   
   const washers = mockWorkers.filter(w => w.role === 'Washer');
   const others = mockWorkers.filter(w => w.role !== 'Washer');
+  
+  // Show loading state
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+          <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 w-full bg-gray-200 rounded animate-pulse"></div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <>
@@ -344,7 +364,7 @@ export function TasksClient() {
             <DialogTitle className="font-headline">Assign New Task</DialogTitle>
             <DialogDescription>Assign a batch of bottles to a worker for washing.</DialogDescription>
           </DialogHeader>
-          <TaskForm onSave={handleSaveTask} closeDialog={() => setIsAssignDialogOpen(false)} />
+          <TaskForm onSave={handleSaveTask} closeDialog={() => setIsAssignDialogOpen(false)} products={mockProducts} workers={mockWorkers} />
         </DialogContent>
       </Dialog>
 

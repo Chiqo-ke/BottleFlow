@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Line, LineChart } from "recharts";
 import type { ChartConfig } from "@/components/ui/chart";
-import { mockPurchases, getWorkerPayments, mockWorkers } from '@/lib/data';
+import { usePurchases, useWorkerPayments } from '@/lib/hooks/useApi';
 
 type Period = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -32,29 +32,19 @@ const salaryChartConfig = {
 
 export function ExpensesClient() {
     const [period, setPeriod] = useState<Period>('monthly');
-    const [_, setTick] = useState(0);
-
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setTick(t => t + 1);
-        }, 1000);
-        return () => clearInterval(interval);
-    }, []);
+    const { data: purchases, loading: purchasesLoading } = usePurchases();
+    const { data: workerPayments, loading: paymentsLoading } = useWorkerPayments(null);
+    
+    const loading = purchasesLoading || paymentsLoading;
 
     const getTotalSalariesPaid = () => {
-        let total = 0;
-        const allPayments = Object.values(getWorkerPayments(null));
-        for (const workerPayments of allPayments) {
-            for (const payment of workerPayments) {
-                total += payment.amount;
-            }
-        }
-        return total;
+        if (!workerPayments) return 0;
+        return workerPayments.reduce((total, payment) => total + payment.amount, 0);
     }
 
     const getFormattedData = (p: Period) => {
         const totalSalariesPaid = getTotalSalariesPaid();
-        const totalPurchasesPaid = mockPurchases.reduce((acc, p) => acc + p.amountPaid, 0);
+        const totalPurchasesPaid = purchases ? purchases.reduce((acc, p) => acc + p.amountPaid, 0) : 0;
 
         // Mock data aggregation based on period
         if (p === 'daily') {
@@ -87,6 +77,26 @@ export function ExpensesClient() {
         ]
     };
 
+    // Show loading state
+    if (loading) {
+        return (
+            <div className="space-y-6">
+                <Card>
+                    <CardHeader>
+                        <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+                        <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid gap-6 md:grid-cols-2">
+                            <div className="h-64 w-full bg-gray-200 rounded animate-pulse"></div>
+                            <div className="h-64 w-full bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+    
     const data = getFormattedData(period);
     
     const purchaseChartData = data.map(d => ({ name: d.date, cost: d.purchases }));
@@ -146,7 +156,7 @@ export function ExpensesClient() {
                                     <YAxis />
                                     <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
                                     <ChartLegend content={<ChartLegendContent />} />
-                                    <Line type="monotone" dataKey="salary" stroke="var(--color-salary)" strokeWidth={2} dot={false} />
+                                    <Line type="monotone" dataKey="salary" stroke="var(--color-salary)" strokeWidth={2} />
                                 </LineChart>
                             </ChartContainer>
                         </CardContent>

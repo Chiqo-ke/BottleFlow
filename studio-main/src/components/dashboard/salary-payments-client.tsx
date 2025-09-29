@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { mockWorkers, mockTasks, updateWorkerPayments, getWorkerPayments, addAuditLog } from '@/lib/data';
+import { useWorkers, useTasks, useUpdateWorkerPayments } from '@/lib/hooks/useApi';
+import BottleFlowApiService from '@/lib/api-adapter';
 import type { Worker, Task } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 
@@ -21,14 +22,20 @@ type WorkerWithSalary = Worker & {
 export function SalaryPaymentsClient() {
     const { toast } = useToast();
     const [workersWithSalaries, setWorkersWithSalaries] = useState<WorkerWithSalary[]>([]);
+    
+    const { data: workers, loading: workersLoading } = useWorkers();
+    const { data: tasks, loading: tasksLoading } = useTasks();
+    const { updateWorkerPayments, loading: paymentLoading } = useUpdateWorkerPayments();
+    
+    const loading = workersLoading || tasksLoading;
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            const updatedSalaries = mockWorkers.map(worker => {
-                const workerTasks = mockTasks.filter(t => t.workerId === worker.id);
+        if (workers && tasks) {
+            const updatedSalaries = workers.map(worker => {
+                const workerTasks = tasks.filter(t => t.workerId === worker.id);
                 const totalNetPay = workerTasks.reduce((acc, task) => acc + task.netPay, 0);
-                const payments = getWorkerPayments(worker.id);
-                const amountPaid = payments.reduce((acc, p) => acc + p.amount, 0);
+                // For now, we'll assume no payments have been made since we don't have payment history per worker
+                const amountPaid = 0;
 
                 return {
                     ...worker,
@@ -38,10 +45,8 @@ export function SalaryPaymentsClient() {
                 };
             });
             setWorkersWithSalaries(updatedSalaries);
-        }, 1000); // Poll for changes every second to simulate real-time updates
-
-        return () => clearInterval(interval);
-    }, []);
+        }
+    }, [workers, tasks]);
 
 
     const [selectedWorker, setSelectedWorker] = useState<WorkerWithSalary | null>(null);
@@ -53,28 +58,51 @@ export function SalaryPaymentsClient() {
         setValue('amount', worker.pendingSalary);
     };
 
-    const handlePaymentSubmit = (data: { amount: number }) => {
+    const handlePaymentSubmit = async (data: { amount: number }) => {
         if (!selectedWorker) return;
 
-        updateWorkerPayments(selectedWorker.id, data.amount);
-        
-        addAuditLog({
-            user: 'manager',
-            action: 'MAKE_PAYMENT',
-            details: `Paid KES ${data.amount.toFixed(2)} to ${selectedWorker.name}`
-        });
+        try {
+            await updateWorkerPayments(selectedWorker.id, data.amount);
+            
+            BottleFlowApiService.addAuditLog({
+                user: 'manager',
+                action: 'MAKE_PAYMENT',
+                details: `Paid KES ${data.amount.toFixed(2)} to ${selectedWorker.name}`
+            });
 
-        toast({
-            title: "Payment Recorded",
-            description: `Paid KES ${data.amount.toFixed(2)} to ${selectedWorker.name}.`,
-        });
+            toast({
+                title: "Payment Recorded",
+                description: `Paid KES ${data.amount.toFixed(2)} to ${selectedWorker.name}.`,
+            });
 
-        setSelectedWorker(null);
-        reset();
+            setSelectedWorker(null);
+            reset();
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: "Error",
+                description: "Failed to record payment. Please try again.",
+            });
+        }
     };
     
     const remainingBalance = selectedWorker ? selectedWorker.pendingSalary - (paymentAmount || 0) : 0;
 
+
+    // Show loading state
+    if (loading) {
+        return (
+            <Card>
+                <CardHeader>
+                    <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+                    <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+                </CardHeader>
+                <CardContent>
+                    <div className="h-64 w-full bg-gray-200 rounded animate-pulse"></div>
+                </CardContent>
+            </Card>
+        );
+    }
 
     return (
         <>
@@ -95,19 +123,27 @@ export function SalaryPaymentsClient() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {workersWithSalaries.map(worker => (
-                                <TableRow key={worker.id}>
-                                    <TableCell className="font-medium">{worker.name}</TableCell>
-                                    <TableCell className="text-right">KES {worker.totalNetPay.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right">KES {worker.amountPaid.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right font-bold">KES {worker.pendingSalary.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button size="sm" onClick={() => handlePayClick(worker)} disabled={worker.pendingSalary <= 0}>
-                                            Pay
-                                        </Button>
+                            {workersWithSalaries.length > 0 ? (
+                                workersWithSalaries.map(worker => (
+                                    <TableRow key={worker.id}>
+                                        <TableCell className="font-medium">{worker.name}</TableCell>
+                                        <TableCell className="text-right">KES {worker.totalNetPay.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right">KES {worker.amountPaid.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right font-bold">KES {worker.pendingSalary.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button size="sm" onClick={() => handlePayClick(worker)} disabled={worker.pendingSalary <= 0 || paymentLoading}>
+                                                {paymentLoading ? 'Processing...' : 'Pay'}
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                                        No workers found
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            )}
                         </TableBody>
                     </Table>
                 </CardContent>
@@ -147,7 +183,12 @@ export function SalaryPaymentsClient() {
                             </div>
                         </div>
                         <DialogFooter>
-                            <Button type="submit" disabled={(paymentAmount || 0) <= 0 || (paymentAmount || 0) > (selectedWorker?.pendingSalary || 0)}>Record Payment</Button>
+                            <Button 
+                                type="submit" 
+                                disabled={(paymentAmount || 0) <= 0 || (paymentAmount || 0) > (selectedWorker?.pendingSalary || 0) || paymentLoading}
+                            >
+                                {paymentLoading ? 'Recording...' : 'Record Payment'}
+                            </Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>

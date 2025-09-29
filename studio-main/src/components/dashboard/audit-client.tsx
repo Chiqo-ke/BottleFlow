@@ -5,20 +5,21 @@ import { format } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { mockAuditLogs } from '@/lib/data';
+import { useAuditLogs } from '@/lib/hooks/useApi';
 import type { AuditLog } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 
 export function AuditClient() {
   const [isClient, setIsClient] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const { data: auditLogs, loading, error, refetch } = useAuditLogs();
 
   useEffect(() => {
     setIsClient(true);
     setUserRole(localStorage.getItem('userRole'));
   }, []);
 
-  if (!isClient) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  if (!isClient || loading) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   
   if (userRole !== 'admin') {
     return (
@@ -28,6 +29,26 @@ export function AuditClient() {
         </CardHeader>
         <CardContent>
           <p>You do not have permission to view this page. This feature is for Admins only.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  // Show error state
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-red-600 mb-2">Error Loading Audit Logs</h3>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <button 
+              onClick={() => refetch()} 
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Retry
+            </button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -57,16 +78,24 @@ export function AuditClient() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mockAuditLogs.map((log) => (
-              <TableRow key={log.id}>
-                <TableCell>{format(new Date(log.date), "PPP p")}</TableCell>
-                <TableCell className="capitalize">{log.user}</TableCell>
-                <TableCell>
-                    <Badge variant={getActionBadgeVariant(log.action)}>{log.action}</Badge>
+            {auditLogs && auditLogs.length > 0 ? (
+              auditLogs.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell>{format(new Date(log.date), "PPP p")}</TableCell>
+                  <TableCell className="capitalize">{log.user}</TableCell>
+                  <TableCell>
+                      <Badge variant={getActionBadgeVariant(log.action)}>{log.action}</Badge>
+                  </TableCell>
+                  <TableCell>{log.details}</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                  No audit logs found
                 </TableCell>
-                <TableCell>{log.details}</TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </CardContent>

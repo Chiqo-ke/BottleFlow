@@ -186,7 +186,38 @@ AUTH_USER_MODEL = 'authentication.User'
 # Frontend URL for email links
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 
-# Email configuration (if not already configured)
+# Logging configuration for better debugging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple'
+        },
+    },
+    'loggers': {
+        'workers.email_service': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+# Email configuration
+# For development: use console backend to print emails to console
+# For production: use SMTP backend to send real emails
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
@@ -194,3 +225,16 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@bottleflow.com')
+
+# Email timeout settings
+EMAIL_TIMEOUT = 30
+
+# Print email configuration status on startup
+if EMAIL_BACKEND == 'django.core.mail.backends.console.EmailBackend':
+    print("📧 Email Backend: Console (emails will be printed to console)")
+else:
+    print(f"📧 Email Backend: {EMAIL_BACKEND}")
+    if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+        print(f"📧 Email configured for: {EMAIL_HOST_USER}")
+    else:
+        print("⚠️  Email credentials not configured. Set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD.")

@@ -1,5 +1,6 @@
 from django.db import models
 import uuid
+from django.conf import settings
 
 class Worker(models.Model):
     """Worker model for managing employees"""
@@ -50,3 +51,33 @@ class Worker(models.Model):
     class Meta:
         db_table = 'workers'
         ordering = ['name']
+
+class WorkerHistory(models.Model):
+    """Model to store history of deleted workers for audit purposes."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    worker_id = models.UUIDField(help_text="Original ID of the worker")
+    name = models.CharField(max_length=100)
+    phone_number = models.CharField(max_length=15)
+    id_number = models.CharField(max_length=20)
+    role = models.CharField(max_length=50)
+    email = models.EmailField(blank=True, null=True)
+    
+    deleted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='deleted_workers'
+    )
+    reason = models.TextField(blank=True, help_text="Reason for deletion")
+    deleted_at = models.DateTimeField(auto_now_add=True)
+    
+    original_created_at = models.DateTimeField()
+    original_updated_at = models.DateTimeField()
+
+    def __str__(self):
+        return f"History for {self.name} ({self.worker_id})"
+    
+    class Meta:
+        db_table = 'worker_history'
+        ordering = ['-deleted_at']
+        verbose_name_plural = 'Worker Histories'

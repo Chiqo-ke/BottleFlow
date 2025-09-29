@@ -6,7 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { mockStock, addAuditLog, updateStock } from '@/lib/data';
+import { useStock, useUpdateStock } from '@/lib/hooks/useApi';
+import BottleFlowApiService from '@/lib/api-adapter';
 import type { Stock } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -25,38 +26,47 @@ const stockMovementSchema = z.object({
   quantity: z.coerce.number().int().positive("Quantity must be a positive number."),
 });
 
-function StockMovementForm({ closeDialog }: { closeDialog: () => void }) {
+function StockMovementForm({ closeDialog, stockData }: { closeDialog: () => void; stockData: Stock[] }) {
   const { toast } = useToast();
+  const { updateStock, loading: updateLoading } = useUpdateStock();
   const form = useForm<z.infer<typeof stockMovementSchema>>({
     resolver: zodResolver(stockMovementSchema),
   });
 
-  const onSubmit = (data: z.infer<typeof stockMovementSchema>) => {
-    const success = updateStock({
-      productId: data.productId,
-      type: data.movementType === 'raw_out' ? 'sell_raw' : 'sell_washed',
-      quantity: data.quantity,
-    });
+  const onSubmit = async (data: z.infer<typeof stockMovementSchema>) => {
+    try {
+      const success = await updateStock({
+        productId: data.productId,
+        type: data.movementType === 'raw_out' ? 'sell_raw' : 'sell_washed',
+        quantity: data.quantity,
+      });
 
-    if (success) {
-      const product = mockStock.find(s => s.productId === data.productId);
-      toast({
-        title: "Stock Movement Recorded",
-        description: `Recorded outflow of ${data.quantity} units of ${product?.productName}.`,
-      });
-      addAuditLog({
-        user: 'manager',
-        action: 'STOCK_MOVEMENT',
-        details: `Stock out: ${data.quantity} x ${product?.productName} (${data.movementType})`,
-      });
-    } else {
+      if (success) {
+        const product = stockData.find(s => s.productId === data.productId);
+        toast({
+          title: "Stock Movement Recorded",
+          description: `Recorded outflow of ${data.quantity} units of ${product?.productName}.`,
+        });
+        BottleFlowApiService.addAuditLog({
+          user: 'manager',
+          action: 'STOCK_MOVEMENT',
+          details: `Stock out: ${data.quantity} x ${product?.productName} (${data.movementType})`,
+        });
+        closeDialog();
+      } else {
+        toast({
+          variant: 'destructive',
+          title: "Insufficient Stock",
+          description: "Not enough stock available for this movement.",
+        });
+      }
+    } catch (error) {
       toast({
         variant: 'destructive',
-        title: "Insufficient Stock",
-        description: "Not enough stock available for this movement.",
+        title: "Error",
+        description: "Failed to record stock movement. Please try again.",
       });
     }
-    closeDialog();
   };
 
   return (
@@ -67,7 +77,7 @@ function StockMovementForm({ closeDialog }: { closeDialog: () => void }) {
             <FormLabel>Product</FormLabel>
             <Select onValueChange={field.onChange} defaultValue={field.value}>
               <FormControl><SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger></FormControl>
-              <SelectContent>{mockStock.map(p => <SelectItem key={p.productId} value={p.productId}>{p.productName}</SelectItem>)}</SelectContent>
+              <SelectContent>{stockData.map(p => <SelectItem key={p.productId} value={p.productId}>{p.productName}</SelectItem>)}</SelectContent>
             </Select>
             <FormMessage />
           </FormItem>
@@ -93,7 +103,9 @@ function StockMovementForm({ closeDialog }: { closeDialog: () => void }) {
           </FormItem>
         )} />
         <div className="flex justify-end">
-            <Button type="submit">Record Movement</Button>
+            <Button type="submit" disabled={updateLoading}>
+              {updateLoading ? 'Recording...' : 'Record Movement'}
+            </Button>
         </div>
       </form>
     </Form>
@@ -102,17 +114,11 @@ function StockMovementForm({ closeDialog }: { closeDialog: () => void }) {
 
 
 export function StockClient() {
-  const [stock, setStock] = useState<Stock[]>(mockStock);
+  const { data: stockData, loading, error, refetch } = useStock();
   const [period, setPeriod] = useState<Period>('daily');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // Poll for changes to keep the UI up-to-date
-  useState(() => {
-      const interval = setInterval(() => {
-          setStock([...mockStock]);
-      }, 500);
-      return () => clearInterval(interval);
-  });
+  const stock = stockData || [];
 
   const filteredStock = (data: Stock[], filterPeriod: Period) => {
     // This is a mock filter. In a real app, you'd filter based on dates.
@@ -120,6 +126,36 @@ export function StockClient() {
   }
 
   const currentStock = filteredStock(stock, period);
+  
+  // Show loading state
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+          <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 w-full bg-gray-200 rounded animate-pulse"></div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-red-600 mb-2">Error Loading Stock Data</h3>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <Button onClick={() => refetch()}>Retry</Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   
   const getAvailableRaw = (item: Stock) => item.purchased - item.washed - item.soldRaw;
 
@@ -154,7 +190,7 @@ export function StockClient() {
           <Tabs defaultValue="all">
             <TabsList>
               <TabsTrigger value="all">All Products</TabsTrigger>
-              {mockStock.map(item => (
+              {stock.map(item => (
                 <TabsTrigger key={item.productId} value={item.productId}>{item.productName}</TabsTrigger>
               ))}
             </TabsList>
@@ -234,7 +270,7 @@ export function StockClient() {
             Record an outflow of stock, for example, a sale.
           </DialogDescription>
         </DialogHeader>
-        <StockMovementForm closeDialog={() => setIsDialogOpen(false)} />
+        <StockMovementForm closeDialog={() => setIsDialogOpen(false)} stockData={stock} />
       </DialogContent>
     </Dialog>
   );

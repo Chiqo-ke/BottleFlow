@@ -11,15 +11,10 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import type { ChartConfig } from "@/components/ui/chart";
-import { mockStock, mockTasks, mockWorkers, getWorkerPayments } from "@/lib/data";
+import { useStock, useTasks, useWorkers, useWorkerPayments } from "@/lib/hooks/useApi";
 import { useState, useEffect } from "react";
 
-const chartData = mockStock.map(s => ({
-    name: s.productName,
-    purchased: s.purchased,
-    washed: s.washed,
-    sold: s.soldRaw + s.soldWashed,
-}));
+// Chart data will be computed from API data in the component
 
 const chartConfig = {
     purchased: {
@@ -39,24 +34,89 @@ const chartConfig = {
 
 export default function Overview() {
   const [totalPendingSalary, setTotalPendingSalary] = useState(0);
-  const totalStock = mockStock.reduce((acc, s) => acc + s.balance, 0);
+  const { data: stockData, loading: stockLoading, error: stockError } = useStock();
+  const { data: tasksData, loading: tasksLoading, error: tasksError } = useTasks();
+  const { data: workersData, loading: workersLoading, error: workersError } = useWorkers();
+  const { data: workerPayments } = useWorkerPayments(null);
+  
+  const totalStock = stockData?.reduce((acc, s) => acc + s.balance, 0) || 0;
+  
+  const chartData = stockData?.map(s => ({
+    name: s.productName,
+    purchased: s.purchased,
+    washed: s.washed,
+    sold: s.soldRaw + s.soldWashed,
+  })) || [];
 
   useEffect(() => {
-    const interval = setInterval(() => {
-        const total = mockWorkers.reduce((totalAcc, worker) => {
-            const workerTasks = mockTasks.filter(t => t.workerId === worker.id);
-            const totalNetPay = workerTasks.reduce((acc, task) => acc + task.netPay, 0);
-            const payments = getWorkerPayments(worker.id);
-            const amountPaid = payments.reduce((acc, p) => acc + p.amount, 0);
-            const pendingSalary = totalNetPay - amountPaid;
-            return totalAcc + pendingSalary;
-        }, 0);
+    if (workersData && tasksData && workerPayments) {
+      const total = workersData.reduce((totalAcc, worker) => {
+        const workerTasks = tasksData.filter(t => t.workerId === worker.id);
+        const totalNetPay = workerTasks.reduce((acc, task) => acc + task.netPay, 0);
+        const payments = workerPayments.filter(p => p.date); // All payments for now
+        const amountPaid = payments.reduce((acc, p) => acc + p.amount, 0);
+        const pendingSalary = totalNetPay - amountPaid;
+        return totalAcc + pendingSalary;
+      }, 0);
       setTotalPendingSalary(total);
-    }, 1000); // Poll for changes
-
-    return () => clearInterval(interval);
-  }, []);
+    }
+  }, [workersData, tasksData, workerPayments]);
   
+  // Show loading state
+  if (stockLoading || tasksLoading || workersLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-16 bg-gray-200 rounded animate-pulse mb-2"></div>
+                <div className="h-3 w-32 bg-gray-200 rounded animate-pulse"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardHeader>
+            <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+            <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px] w-full bg-gray-200 rounded animate-pulse"></div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (stockError || tasksError || workersError) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-red-600 mb-2">Error Loading Dashboard</h3>
+              <p className="text-gray-600 mb-4">
+                {stockError || tasksError || workersError}
+              </p>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Retry
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -104,7 +164,7 @@ export default function Overview() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockWorkers.length}</div>
+            <div className="text-2xl font-bold">{workersData?.length || 0}</div>
             <p className="text-xs text-muted-foreground">
               Total workers in the system
             </p>
