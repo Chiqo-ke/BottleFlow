@@ -39,7 +39,7 @@ def worker_list_create(request):
                     
                     print(f"🔄 Sending credentials email to {worker.email}...")
                     # Send credentials email
-                    email_sent = send_manager_credentials_email(
+                    email_result = send_manager_credentials_email(
                         worker.name,
                         worker.email,
                         account_result['username'],
@@ -48,21 +48,25 @@ def worker_list_create(request):
                     )
                     
                     # Log audit trail with email status
-                    email_status = "with email sent" if email_sent else "but email failed"
+                    email_status = "with email sent" if email_result['success'] else "but email failed"
                     log_audit(
                         user=request.user,
                         action='CREATE_MANAGER_WORKER',
                         details=f'Created manager worker: {worker.name} with account {account_result["username"]} {email_status}'
                     )
                     
+                    # Determine the final status code and message
+                    final_status = status.HTTP_201_CREATED if email_result['success'] else status.HTTP_207_MULTI_STATUS
+                    message = f"Manager {worker.name} created successfully. {email_result['message']}"
+
                     response_data = WorkerSerializer(worker).data
                     response_data['account_created'] = True
-                    response_data['email_sent'] = email_sent
+                    response_data['email_sent'] = email_result['success']
                     response_data['username'] = account_result['username']
-                    response_data['message'] = f"Manager {worker.name} created successfully. {'Email sent.' if email_sent else 'Email sending failed - check console for details.'}"
+                    response_data['message'] = message
                     
                     print(f"✅ Manager creation completed for {worker.name}")
-                    return Response(response_data, status=status.HTTP_201_CREATED)
+                    return Response(response_data, status=final_status)
                 else:
                     # Account creation failed, but worker was created
                     print(f"❌ Account creation failed for {worker.name}: {account_result['error']}")
@@ -77,7 +81,7 @@ def worker_list_create(request):
                     response_data['account_error'] = account_result['error']
                     response_data['message'] = f"Worker {worker.name} created but manager account creation failed: {account_result['error']}"
                     
-                    return Response(response_data, status=status.HTTP_201_CREATED)
+                    return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
             else:
                 # Regular worker (non-manager) or manager without email
                 if worker.role.lower() == 'manager' and not worker.email:
@@ -160,7 +164,7 @@ def worker_detail(request, pk):
             details=f'Deleted and archived worker: {worker_name}'
         )
         
-        return Response({'message': 'Worker deleted and archived successfully'}, status=status.HTTP_204_NO_CONTENT)
+        return Response({ "success": True, 'message': 'Worker deleted and archived successfully' }, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])

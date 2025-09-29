@@ -8,6 +8,8 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from authentication.models import User
+from bottleflow.settings import EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
+
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -145,12 +147,13 @@ Best regards,
     try:
         logger.info(f"Attempting to send manager credentials email to {email}")
         
+        # Check if credentials are set in Django settings (loaded from .env)
         if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD:
             error_msg = "Email credentials not configured. Please set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in your .env file. Refer to EMAIL_SETUP_GUIDE.md for details."
             logger.error(error_msg)
             print(f"❌ EMAIL CONFIG ERROR: {error_msg}")
             return {'success': False, 'message': 'Email server is not configured.'}
-        
+
         email_sent = send_email(
             subject,
             message,
@@ -164,12 +167,8 @@ Best regards,
         else:
             # send_email already logs the specific error
             return {'success': False, 'message': 'Failed to send credentials email.'}
-        
     except Exception as e:
-        error_msg = f"Failed to send email to {email}: {str(e)}"
+        error_msg = f"Exception occurred while sending manager credentials email to {email}: {str(e)}"
         logger.error(error_msg)
         print(f"❌ EMAIL SENDING ERROR: {error_msg}")
-        return {
-            'success': False,
-            'message': 'An unexpected error occurred while trying to send the email.'
-        }
+        return {'success': False, 'message': 'An error occurred while sending credentials email.'}
