@@ -13,6 +13,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 
 import type { ChartConfig } from "@/components/ui/chart";
 import { useStock, useTasks, useWorkers, useWorkerPayments } from "@/lib/hooks/useApi";
 import { useState, useEffect } from "react";
+import { buildApiUrl, API_CONFIG } from "@/lib/config";
 
 // Chart data will be computed from API data in the component
 
@@ -31,9 +32,13 @@ const chartConfig = {
     },
 } satisfies ChartConfig;
 
+interface PurchaseSummary {
+  total_cost: number;
+}
 
 export default function Overview() {
   const [totalPendingSalary, setTotalPendingSalary] = useState(0);
+  const [totalPurchases, setTotalPurchases] = useState<number>(0);
   const { data: stockData, loading: stockLoading, error: stockError } = useStock();
   const { data: tasksData, loading: tasksLoading, error: tasksError } = useTasks();
   const { data: workersData, loading: workersLoading, error: workersError } = useWorkers();
@@ -61,7 +66,38 @@ export default function Overview() {
       setTotalPendingSalary(total);
     }
   }, [workersData, tasksData, workerPayments]);
-  
+
+  useEffect(() => {
+    const fetchPurchaseSummary = async () => {
+      const today = new Date();
+      const start_date = today.toISOString().split('T')[0]; // YYYY-MM-DD
+      const end_date = today.toISOString().split('T')[0];   // YYYY-MM-DD
+      const accessToken = localStorage.getItem('access_token');
+
+      try {
+        const response = await fetch(
+          buildApiUrl(`${API_CONFIG.ENDPOINTS.PURCHASES}/?summary=true&start_date=${start_date}&end_date=${end_date}`),
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        if (response.ok) {
+          const data: PurchaseSummary = await response.json();
+          setTotalPurchases(data.total_cost);
+        } else {
+          console.error('Failed to fetch purchase summary:', response.status);
+        }
+      } catch (error) {
+        console.error('Error fetching purchase summary:', error);
+      }
+    };
+
+    fetchPurchaseSummary();
+  }, []);
+
   // Show loading state
   if (stockLoading || tasksLoading || workersLoading) {
     return (
@@ -128,7 +164,7 @@ export default function Overview() {
             <ShoppingBag className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">KES 100.00</div>
+            <div className="text-2xl font-bold">KES {totalPurchases ? totalPurchases.toFixed(2) : 'Loading...'}</div>
             <p className="text-xs text-muted-foreground">
               Total cost of bottles bought today
             </p>

@@ -8,8 +8,8 @@ export const loginSchema = z.object({
 export const productSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(3, 'Name must be at least 3 characters long'),
-  purchasePrice: z.coerce.number().positive('Price must be positive'),
-  washPrice: z.coerce.number().positive('Price must be positive'),
+  purchase_price: z.coerce.number().positive('Price must be positive'),
+  wash_price: z.coerce.number().positive('Price must be positive'),
 });
 
 const purchaseItemSchema = z.object({

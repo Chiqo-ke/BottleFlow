@@ -72,6 +72,7 @@ Content-Type: application/json
     "wash_price": "2.00"
 }
 ```
+> **Note:** Price fields (`purchase_price`, `wash_price`) should be sent as strings representing valid numbers. Empty strings or non-numeric values will be rejected.
 
 ### 3. Update Product
 **Endpoint:** `PUT /api/products/{product_id}/`

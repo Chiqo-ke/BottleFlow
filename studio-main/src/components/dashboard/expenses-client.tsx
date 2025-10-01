@@ -32,6 +32,12 @@ const salaryChartConfig = {
 
 export function ExpensesClient() {
     const [period, setPeriod] = useState<Period>('monthly');
+    const [chartData, setChartData] = useState<any>({
+        daily: [],
+        weekly: [],
+        monthly: [],
+        yearly: [],
+    });
     const { data: purchases, loading: purchasesLoading } = usePurchases();
     const { data: workerPayments, loading: paymentsLoading } = useWorkerPayments(null);
     
@@ -42,40 +48,177 @@ export function ExpensesClient() {
         return workerPayments.reduce((total, payment) => total + payment.amount, 0);
     }
 
-    const getFormattedData = (p: Period) => {
+    const getFormattedData = async (p: Period) => {
         const totalSalariesPaid = getTotalSalariesPaid();
         const totalPurchasesPaid = purchases ? purchases.reduce((acc, p) => acc + p.amountPaid, 0) : 0;
 
-        // Mock data aggregation based on period
-        if (p === 'daily') {
+        // Helper function to fetch purchase data
+        const fetchPurchaseData = async (startDate: string, endDate: string) => {
+            const params = new URLSearchParams({
+                summary: 'true',
+                start_date: startDate,
+                end_date: endDate,
+            });
+            const response = await fetch(`/api/purchases?${params.toString()}`);
+            const data = await response.json();
+            return data?.[0]?.total_cost || 0;
+        };
+
+        // Helper function to fetch salary data
+        const fetchSalaryData = async (startDate: string, endDate: string) => {
+            const params = new URLSearchParams({
+                start_date: startDate,
+                end_date: endDate,
+            });
+            const response = await fetch(`/api/salaries/payments?${params.toString()}`);
+            const data = await response.json();
+            // Aggregate salary data
+            const totalSalary = data.reduce((acc: number, payment: any) => acc + parseFloat(payment.amount), 0);
+            return totalSalary;
+        };
+
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1));
+        const endOfWeek = new Date(today);
+        endOfWeek.setDate(today.getDate() - today.getDay() + 7);
+
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+        const startOfYear = new Date(today.getFullYear(), 0, 1);
+        const endOfYear = new Date(today.getFullYear(), 11, 31);
+
+        // Format dates to string
+        const formatDate = (date: Date): string => date.toISOString().split('T')[0];
+
+        // Fetch data for each period
+        const getDailyData = async () => {
+            const [todayPurchases, yesterdayPurchases, todaySalaries, yesterdaySalaries] = await Promise.all([
+                fetchPurchaseData(formatDate(today), formatDate(today)),
+                fetchPurchaseData(formatDate(yesterday), formatDate(yesterday)),
+                fetchSalaryData(formatDate(today), formatDate(today)),
+                fetchSalaryData(formatDate(yesterday), formatDate(yesterday)),
+            ]);
+
             return [
-                { date: 'Today', purchases: totalPurchasesPaid, salaries: totalSalariesPaid },
-                { date: 'Yesterday', purchases: 150, salaries: 45 },
-            ]
-        }
-        if (p === 'weekly') {
+                {
+                    name: 'Today',
+                    purchases: todayPurchases,
+                    salaries: todaySalaries,
+                },
+                {
+                    name: 'Yesterday',
+                    purchases: yesterdayPurchases,
+                    salaries: yesterdaySalaries,
+                },
+            ];
+        };
+
+        const getWeeklyData = async () => {
+            const [lastWeekPurchases, thisWeekPurchases, lastWeekSalaries, thisWeekSalaries] = await Promise.all([
+                fetchPurchaseData(formatDate(new Date(startOfWeek.getTime() - 7 * 24 * 60 * 60 * 1000)), formatDate(new Date(endOfWeek.getTime() - 7 * 24 * 60 * 60 * 1000))),
+                fetchPurchaseData(formatDate(startOfWeek), formatDate(endOfWeek)),
+                fetchSalaryData(formatDate(new Date(startOfWeek.getTime() - 7 * 24 * 60 * 60 * 1000)), formatDate(new Date(endOfWeek.getTime() - 7 * 24 * 60 * 60 * 1000))),
+                fetchSalaryData(formatDate(startOfWeek), formatDate(endOfWeek)),
+            ]);
+
             return [
-                { date: 'This Week', purchases: totalPurchasesPaid, salaries: totalSalariesPaid },
-                { date: 'Last Week', purchases: 750, salaries: 280 },
-            ]
-        }
-        if (p === 'yearly') {
+                {
+                    name: 'Last Week',
+                    purchases: lastWeekPurchases,
+                    salaries: lastWeekSalaries,
+                },
+                {
+                    name: 'This Week',
+                    purchases: thisWeekPurchases,
+                    salaries: thisWeekSalaries,
+                },
+            ];
+        };
+
+        const getMonthlyData = async () => {
+            const currentYear = today.getFullYear();
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const monthlyData = [];
+
+            for (let i = 0; i < 6; i++) {
+                const month = today.getMonth() - i;
+                const year = currentYear;
+
+                const firstDayOfMonth = new Date(year, month, 1);
+                const lastDayOfMonth = new Date(year, month + 1, 0);
+
+                const purchaseValue = await fetchPurchaseData(formatDate(firstDayOfMonth), formatDate(lastDayOfMonth));
+                const salaryValue = await fetchSalaryData(formatDate(firstDayOfMonth), formatDate(lastDayOfMonth));
+
+                monthlyData.push({
+                    name: monthNames[month] || 'Invalid Month',
+                    purchases: purchaseValue,
+                    salaries: salaryValue,
+                });
+            }
+
+            return monthlyData.reverse();
+        };
+
+        const getYearlyData = async () => {
+            const currentYear = today.getFullYear();
+            const lastYear = currentYear - 1;
+
+            const [lastYearPurchases, thisYearPurchases, lastYearSalaries, thisYearSalaries] = await Promise.all([
+                fetchPurchaseData(`${lastYear}-01-01`, `${lastYear}-12-31`),
+                fetchPurchaseData(`${currentYear}-01-01`, `${currentYear}-12-31`),
+                fetchSalaryData(`${lastYear}-01-01`, `${lastYear}-12-31`),
+                fetchSalaryData(`${currentYear}-01-01`, `${currentYear}-12-31`),
+            ]);
+
             return [
-                { date: 'This Year', purchases: totalPurchasesPaid, salaries: totalSalariesPaid },
-                { date: 'Last Year', purchases: 22000, salaries: 14000 },
-            ]
+                {
+                    name: 'Last Year',
+                    purchases: lastYearPurchases,
+                    salaries: lastYearSalaries,
+                },
+                {
+                    name: 'This Year',
+                    purchases: thisYearPurchases,
+                    salaries: thisYearSalaries,
+                },
+            ];
+        };
+
+        let periodData: any[];
+
+        switch (p) {
+            case 'daily':
+                periodData = await getDailyData();
+                break;
+            case 'weekly':
+                periodData = await getWeeklyData();
+                break;
+            case 'monthly':
+                periodData = await getMonthlyData();
+                break;
+            case 'yearly':
+                periodData = await getYearlyData();
+                break;
+            default:
+                periodData = [];
         }
-        // Monthly
-        return [
-            { date: 'Jan', purchases: 2000, salaries: 1200 },
-            { date: 'Feb', purchases: 1800, salaries: 1100 },
-            { date: 'Mar', purchases: 2200, salaries: 1300 },
-            { date: 'Apr', purchases: 2500, salaries: 1500 },
-            { date: 'May', purchases: 2300, salaries: 1400 },
-            { date: 'Jun', purchases: 2800, salaries: 1600 },
-            { date: 'Jul', purchases: totalPurchasesPaid, salaries: totalSalariesPaid },
-        ]
+        return periodData;
     };
+
+    useEffect(() => {
+        const fetchData = async () => {
+            const data = await getFormattedData(period);
+            setChartData(data);
+        };
+
+        fetchData();
+    }, [period]);
 
     // Show loading state
     if (loading) {
@@ -97,10 +240,8 @@ export function ExpensesClient() {
         );
     }
     
-    const data = getFormattedData(period);
-    
-    const purchaseChartData = data.map(d => ({ name: d.date, cost: d.purchases }));
-    const salaryChartData = data.map(d => ({ name: d.date, salary: d.salaries }));
+    const purchaseChartData = Array.isArray(chartData) ? chartData.map((d: any) => ({ name: d.name, cost: d.purchases })) : [];
+    const salaryChartData = Array.isArray(chartData) ? chartData.map((d: any) => ({ name: d.name, salary: d.salaries })) : [];
 
     return (
         <div className="space-y-6">

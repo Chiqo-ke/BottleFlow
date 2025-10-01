@@ -1,8 +1,8 @@
 export type Product = {
   id: string;
   name: string;
-  purchasePrice: number;
-  washPrice: number;
+  purchase_price: number;
+  wash_price: number;
 };
 
 export type Worker = {

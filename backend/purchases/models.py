@@ -46,13 +46,17 @@ class PurchaseItem(models.Model):
         from stock.models import StockMovement
         
         # Create stock movement for this purchase
-        StockMovement.objects.get_or_create(
+        stock_movement, created = StockMovement.objects.get_or_create(
             product=self.product,
             type='purchase',
             quantity=self.quantity,
             reference_id=str(self.id),
             defaults={'created_at': self.purchase.created_at}
         )
+        if created:
+            print(f"DEBUG: Created StockMovement for product {self.product.name}, quantity {self.quantity}, type 'purchase'")
+        else:
+            print(f"DEBUG: StockMovement already exists for product {self.product.name}, reference_id {self.id}")
     
     def __str__(self):
         return f"{self.product.name} x {self.quantity}"

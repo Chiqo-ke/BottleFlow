@@ -24,6 +24,10 @@ const stockMovementSchema = z.object({
   productId: z.string({ required_error: "Please select a product." }),
   movementType: z.enum(['raw_out', 'washed_out'], { required_error: "Please select a movement type." }),
   quantity: z.coerce.number().int().positive("Quantity must be a positive number."),
+  pricePerUnit: z.string().regex(/^\d+(\.\d{1,2})?$/, "Price must be a valid number with up to 2 decimal places."),
+  customerName: z.string().min(2, "Customer name must be at least 2 characters."),
+  date: z.date(),
+  notes: z.string().optional(),
 });
 
 function StockMovementForm({ closeDialog, stockData }: { closeDialog: () => void; stockData: Stock[] }) {
@@ -31,10 +35,30 @@ function StockMovementForm({ closeDialog, stockData }: { closeDialog: () => void
   const { updateStock, loading: updateLoading } = useUpdateStock();
   const form = useForm<z.infer<typeof stockMovementSchema>>({
     resolver: zodResolver(stockMovementSchema),
+    defaultValues: {
+      productId: '',
+      movementType: undefined, // Use undefined for select to allow placeholder to show
+      quantity: 0,
+      pricePerUnit: '',
+      customerName: '',
+      date: new Date(),
+      notes: '',
+    },
   });
 
   const onSubmit = async (data: z.infer<typeof stockMovementSchema>) => {
     try {
+      // Map form data to the expected API format
+      const payload = {
+        product: data.productId,
+        sale_type: data.movementType === 'raw_out' ? 'raw' : 'washed',
+        quantity: data.quantity,
+        price_per_unit: data.pricePerUnit,
+        customer_name: data.customerName,
+        date: data.date.toISOString(), // Format date as required by the API
+        notes: data.notes,
+      };
+
       const success = await updateStock({
         productId: data.productId,
         type: data.movementType === 'raw_out' ? 'sell_raw' : 'sell_washed',
@@ -99,6 +123,34 @@ function StockMovementForm({ closeDialog, stockData }: { closeDialog: () => void
           <FormItem>
             <FormLabel>Quantity</FormLabel>
             <FormControl><Input type="number" {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+        <FormField control={form.control} name="pricePerUnit" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Price per Unit</FormLabel>
+            <FormControl><Input type="text" {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+        <FormField control={form.control} name="customerName" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Customer Name</FormLabel>
+            <FormControl><Input type="text" {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+         <FormField control={form.control} name="date" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Date</FormLabel>
+            <FormControl><Input type="date" {...field} value={field.value ? field.value.toISOString().split('T')[0] : ''} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+        <FormField control={form.control} name="notes" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Notes</FormLabel>
+            <FormControl><Input type="text" {...field} /></FormControl>
             <FormMessage />
           </FormItem>
         )} />

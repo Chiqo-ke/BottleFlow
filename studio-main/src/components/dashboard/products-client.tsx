@@ -27,7 +27,7 @@ import { useToast } from '@/hooks/use-toast';
 function ProductForm({ product, onSave, closeDialog, isSubmitting }: { product?: Product, onSave: (data: Product) => Promise<void>, closeDialog: () => void, isSubmitting: boolean }) {
   const form = useForm<z.infer<typeof productSchema>>({
     resolver: zodResolver(productSchema),
-    defaultValues: product || { name: '', purchasePrice: 0, washPrice: 0 },
+    defaultValues: product || { name: '', purchase_price: 0, wash_price: 0 },
   });
 
   const onSubmit = async (data: z.infer<typeof productSchema>) => {
@@ -45,17 +45,35 @@ function ProductForm({ product, onSave, closeDialog, isSubmitting }: { product?:
           </FormItem>
         )} />
         <div className="grid grid-cols-2 gap-4">
-          <FormField control={form.control} name="purchasePrice" render={({ field }) => (
+          <FormField control={form.control} name="purchase_price" render={({ field }) => (
             <FormItem>
               <FormLabel htmlFor="purchase-price">Purchase Price (KES)</FormLabel>
-              <FormControl><Input type="number" step="0.01" {...field} id="purchase-price" placeholder="0.00" onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="0.01"
+                  {...field}
+                  id="purchase-price"
+                  placeholder="0.00"
+                  onChange={e => field.onChange(e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )} />
-          <FormField control={form.control} name="washPrice" render={({ field }) => (
+          <FormField control={form.control} name="wash_price" render={({ field }) => (
             <FormItem>
               <FormLabel htmlFor="wash-price">Wash Price (KES)</FormLabel>
-              <FormControl><Input type="number" step="0.01" {...field} id="wash-price" placeholder="0.00" onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="0.01"
+                  {...field}
+                  id="wash-price"
+                  placeholder="0.00"
+                  onChange={e => field.onChange(e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )} />
@@ -96,8 +114,8 @@ export function ProductsClient() {
         const convertedProducts: Product[] = response.data.map((apiProduct: ApiProduct) => ({
           id: apiProduct.id,
           name: apiProduct.name,
-          purchasePrice: parseFloat(apiProduct.purchase_price),
-          washPrice: parseFloat(apiProduct.wash_price),
+          purchase_price: parseFloat(apiProduct.purchase_price),
+          wash_price: parseFloat(apiProduct.wash_price),
         }));
         setProducts(convertedProducts);
       } else {
@@ -127,8 +145,8 @@ export function ProductsClient() {
       // Convert frontend format to API format
       const apiProductData: CreateProductData = {
         name: productData.name,
-        purchase_price: productData.purchasePrice.toString(),
-        wash_price: productData.washPrice.toString(),
+        purchase_price: productData.purchase_price.toString(),
+        wash_price: productData.wash_price.toString(),
       };
 
       let response;
@@ -246,8 +264,8 @@ export function ProductsClient() {
                 products.map((product) => (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">{product.name}</TableCell>
-                    <TableCell className="text-right">KES {product.purchasePrice.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">KES {product.washPrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">KES {product.purchase_price.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">KES {product.wash_price.toFixed(2)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" size="icon" onClick={() => { setEditingProduct(product); setIsDialogOpen(true); }}>
